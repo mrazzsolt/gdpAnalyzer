@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 from scipy.stats import linregress
 import plotly.express as px
 from datetime import datetime
+import numpy as np
+import matplotlib.ticker as mticker
 
 class GDPDataAnalyzer:
     def __init__(self, file_path, year_offset=2):
@@ -11,15 +13,13 @@ class GDPDataAnalyzer:
         self.year_offset = year_offset
         self.year = datetime.now().year - self.year_offset
         self.data = self.load_data()
-        self.gdp_data = self.filter_gdp_data()
+        self.gdp_data = self.filter_gdp_data()  
 
     def load_data(self):
         return pd.read_csv(self.file_path, low_memory=False)
 
     def filter_gdp_data(self):
-        gdp_data = self.data[(self.data['na_item'] == 'B1GQ') & 
-                             (self.data['unit'] == 'CP_MEUR') & 
-                             (self.data['TIME_PERIOD'] == self.year)]
+        gdp_data = self.data[(self.data['na_item'] == 'B1GQ') & (self.data['unit'] == 'CP_MEUR') & (self.data['TIME_PERIOD'] == self.year)]
         gdp_data = gdp_data.dropna(subset=['OBS_VALUE'])
         gdp_data = gdp_data[~gdp_data['geo'].isin(['EU27_2020', 'EA', 'EA12', 'EA19', 'EA20'])]
         return gdp_data
@@ -31,13 +31,12 @@ class GDPDataAnalyzer:
         return top10_gdp_countries
 
     def prepare_data_for_analysis(self):
-        #self.data = self.data.drop_duplicates(subset=['TIME_PERIOD', 'geo'])
         self.data = self.data[(self.data['na_item'] == 'B1GQ') & (self.data['unit'] == 'CP_MEUR')]
         self.data = self.data[~self.data['geo'].isin(['EU27_2020', 'EA', 'EA12', 'EA19', 'EA20'])]
         self.data['TIME_PERIOD'] = pd.to_datetime(self.data['TIME_PERIOD'], format='%Y')
         self.data = self.data.dropna(subset=['OBS_VALUE'])
         self.data = self.data.dropna(subset=['TIME_PERIOD'])
-        self.data = self.data[self.data['TIME_PERIOD'].dt.year >= 2000]
+        self.data = self.data[self.data['TIME_PERIOD'].dt.year >= 2000] 
 
     def plot_heatmap(self, top5_countries):
         pivot_data = self.data[self.data['geo'].isin(top5_countries)].pivot(index='TIME_PERIOD', columns='geo', values='OBS_VALUE')
@@ -45,7 +44,7 @@ class GDPDataAnalyzer:
         plt.figure(figsize=(10, 6))
         sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt='.2f')
         plt.title('GDP korreláció - Top 5 ország')
-        plt.show()
+        plt.show()  
 
     def plot_boxplot(self, top10_gdp_countries): #Minnél kisebb a doboz annál stabilabb a GDP. A dobozon kívüli pontok szokatlan GDP-értékeket, ha sok van ingadozó gazdaságra utal.
         boxplot_data = self.data[(self.data['geo'].isin(top10_gdp_countries['geo'])) & (self.data['unit'] == 'CP_MEUR')]
@@ -55,27 +54,35 @@ class GDPDataAnalyzer:
         plt.xlabel('Ország')
         plt.ylabel('GDP (CLV05_MEUR)')
         plt.xticks(rotation=90)
-        plt.show()
+        plt.show()  
 
     def plot_time_series(self, countries):  
         plt.figure(figsize=(14, 8))
-        gdp_values = [self.data[(self.data['geo'] == country) & (self.data['unit'] == 'CP_MEUR')]['OBS_VALUE'] for country in countries]
-        min_gdp = min([values.min() for values in gdp_values])
-        max_gdp = max([values.max() for values in gdp_values])
+        #Van olyan, hogy egy országnak még nincs meg az adott évre a GDP-je és, hogy ne csússzon el a diagramm közös éveket kikeressük.
+        common_years = set.intersection(*[set(self.data[(self.data['geo'] == country) & (self.data['unit'] == 'CP_MEUR')]['TIME_PERIOD'].dt.year)
+                                          for country in countries])
+        if not common_years:
+            print("Nincs közös év az összes kiválasztott országnak.")
+            return
+        max_common_year = max(common_years)
+        gdp_values = []
         for country in countries:
-            country_data = self.data[(self.data['geo'] == country) & (self.data['unit'] == 'CP_MEUR')]
-            plt.plot(country_data['TIME_PERIOD'].dt.year, country_data['OBS_VALUE'], label=country, marker='o')
-
-        years = country_data['TIME_PERIOD'].dt.year
-        plt.xticks(years, rotation=45)
-        y_ticks = range(int(min_gdp // 500000 * 500000), int(max_gdp) + 500000, 500000)
-        plt.yticks(y_ticks)
+            country_data = self.data[(self.data['geo'] == country) & (self.data['unit'] == 'CP_MEUR') & (self.data['TIME_PERIOD'].dt.year <= max_common_year)]
+            gdp_values.append(country_data['OBS_VALUE'])
+            plt.plot(country_data['TIME_PERIOD'].dt.year, country_data['OBS_VALUE'], label=country, marker='o') 
+        min_gdp = min([values.min() for values in gdp_values])
+        max_gdp = max([values.max() for values in gdp_values])  
+        plt.gca().get_yaxis().set_major_formatter(mticker.FuncFormatter(lambda x, _: f'{int(x):,}'.replace(',', ' ')))
+        plt.xticks(sorted(common_years), rotation=45)   
+        step = 300000
+        y_ticks = np.arange(int(min_gdp // step * step), int(max_gdp) + step, step)
+        plt.yticks(y_ticks) 
         plt.title('GDP trendek')
         plt.xlabel('Év')
         plt.ylabel('GDP (Millió euró)')
         plt.legend()
         plt.grid(True)
-        plt.show()
+        plt.show()  
 
     def analyze_hungary_gdp_trend(self):
         hungary_gdp = self.data[(self.data['geo'] == 'HU') & (self.data['unit'] == 'CP_MEUR')]
@@ -94,15 +101,15 @@ class GDPDataAnalyzer:
         plt.show()
         print(f"Trend meredeksége: {slope:.2f}, R^2 érték: {r_value**2:.2f}")
         hungary_gdp.loc[:, 'GDP_growth_rate'] = hungary_gdp['OBS_VALUE'].pct_change() * 100
-        return hungary_gdp
-
+        return hungary_gdp  
+    
     def plot_interactive_time_series(self):
         fig = px.line(self.data[self.data['unit'] == 'CP_MEUR'],x='TIME_PERIOD', y='OBS_VALUE', 
                       color='geo',title='GDP trendek országok szerint',labels={'OBS_VALUE': 'GDP (CP_MEUR)', 'TIME_PERIOD': 'Év'})
         fig.update_layout(xaxis=dict(tickmode='array',tickvals=self.data['TIME_PERIOD'].dt.year.unique(),
                                      ticktext=[str(year) for year in self.data['TIME_PERIOD'].dt.year.unique()]))
-        fig.show()
-
+        fig.show()  
+        
     def plot_hungary_gdp_growth_rate(self, hungary_gdp):
         hungary_gdp = hungary_gdp[hungary_gdp['TIME_PERIOD'].dt.year >= 2000]
         plt.figure(figsize=(10, 6))
@@ -113,8 +120,7 @@ class GDPDataAnalyzer:
         plt.legend()
         plt.grid(True)
         plt.xticks(hungary_gdp['TIME_PERIOD'].dt.year, rotation=45)
-        plt.show()
-
+        plt.show()  
 
 file_path = 'eurostat_gdp_data.csv'
 year_offset = 2
