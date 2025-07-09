@@ -6,6 +6,9 @@ import plotly.express as px
 from datetime import datetime
 import numpy as np
 import matplotlib.ticker as mticker
+from aiAnalysis import AIAnalysis
+import os
+os.environ["LOKY_MAX_CPU_COUNT"] = "4"  # Vagy állítsd be a CPU magok számát
 
 class GDPDataAnalyzer:
     def __init__(self, file_path, year_offset=2):
@@ -99,7 +102,7 @@ class GDPDataAnalyzer:
         plt.grid(True)
         plt.xticks(years, rotation=45)
         plt.show()
-        print(f"Trend meredeksége: {slope:.2f}, R^2 érték: {r_value**2:.2f}")
+        #print(f"Trend meredeksége: {slope:.2f}, R^2 érték: {r_value**2:.2f}")
         hungary_gdp.loc[:, 'GDP_growth_rate'] = hungary_gdp['OBS_VALUE'].pct_change() * 100
         return hungary_gdp  
     
@@ -127,9 +130,16 @@ year_offset = 2
 analyzer = GDPDataAnalyzer(file_path, year_offset=year_offset)
 top10_gdp_countries = analyzer.get_top10_gdp_countries()
 analyzer.prepare_data_for_analysis()
+print("Adatok előkészítése után elérhető országok száma:", analyzer.data['geo'].nunique())
+print("Elérhető országok listája:", analyzer.data['geo'].unique())
 analyzer.plot_heatmap(top10_gdp_countries.head(5)['geo'])
 analyzer.plot_boxplot(top10_gdp_countries)
-analyzer.plot_time_series(['HU', 'AT', 'DE', 'FR'])
+analyzer.plot_time_series(['HU', 'AT', 'DE', 'FR','UK'])
 hungary_gdp = analyzer.analyze_hungary_gdp_trend()
 analyzer.plot_interactive_time_series()
 analyzer.plot_hungary_gdp_growth_rate(hungary_gdp)
+ai_analyzer = AIAnalysis(analyzer.data)
+optimal_clusters = ai_analyzer.elbow_method(max_clusters=10)
+ai_analyzer.perform_kmeans_clustering(n_clusters=optimal_clusters)
+ai_analyzer.detect_anomalies()
+ai_analyzer.plot_anomalies(['DE', 'UK'])
