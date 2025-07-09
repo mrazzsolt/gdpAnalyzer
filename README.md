@@ -78,16 +78,15 @@ Interactive GDP visualization across all countries.
 
 ## Setup & Usage
 
-### 1. Install dependencies
+```bash
+1. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 
-### 2. Add your GDP data
-```bash
+2. Add your GDP data
 python getData.py
 This downloads the latest GDP data from the Eurostat website in CSV format.
 
-### 3. Run the analysis
-```bash
+3. Run the analysis
 python dataAnalysis.py
