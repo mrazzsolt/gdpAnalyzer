@@ -80,7 +80,6 @@ Interactive GDP visualization across all countries.
 
 ```bash
 1. Install dependencies
-
 pip install -r requirements.txt
 
 2. Add your GDP data
